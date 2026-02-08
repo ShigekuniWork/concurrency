@@ -1,30 +1,27 @@
-use std::sync::atomic::AtomicBool;
+use std::time::Duration;
+use std::{sync::atomic::AtomicUsize, thread};
+
 use std::sync::atomic::Ordering::Relaxed;
-use std::thread;
 
 fn main() {
-    static STOP: AtomicBool = AtomicBool::new(false);
+    let num_done = AtomicUsize::new(0);
 
-    let background_thread = thread::spawn(|| {
-        while !STOP.load(Relaxed) {
-            for _ in 0..1000 {
-                let _ = 1 + 1;
+    thread::scope(|s| {
+        s.spawn(|| {
+            for _ in 0..100 {
+                num_done.fetch_add(1, Relaxed);
             }
+        });
+
+        loop {
+            let n = num_done.load(Relaxed);
+            if n == 100 {
+                break;
+            }
+            println!("Not done, n = {}", n);
+            thread::sleep(Duration::from_secs(1));
         }
     });
 
-    println!("Please enter a command: help, stop");
-    for line in std::io::stdin().lines() {
-        match line.unwrap().as_str() {
-            "help" => println!("Available commands: help, stop"),
-            "stop" => {
-                STOP.store(true, Relaxed);
-                break;
-            }
-            cmd => println!("Unknown command: {}", cmd),
-        }
-    }
-
-    STOP.store(true, Relaxed);
-    background_thread.join().unwrap();
+    println!("Done")
 }
