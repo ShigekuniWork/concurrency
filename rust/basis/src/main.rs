@@ -1,4 +1,4 @@
-use std::{cell::{Cell, RefCell}, rc::Rc, thread};
+use std::{cell::{Cell, RefCell}, rc::Rc, sync::Mutex, thread, time::Duration};
 
 fn main() {
     let t1 = thread::spawn(f);
@@ -40,6 +40,23 @@ fn main() {
 
     v_ref.borrow_mut().push(6);
     println!("v: {:?}", v_ref.borrow());
+
+
+    // Mutex
+    let n = Mutex::new(0);
+    thread::scope(|s| {
+        for _ in 0..10 {
+            s.spawn(|| {
+                let mut guard = n.lock().unwrap();
+                for _ in 0..100 {
+                    *guard += 1;
+                }
+                thread::sleep(Duration::from_secs(1));
+            });
+        }
+    });
+
+    assert_eq!(n.into_inner().unwrap(), 1000);
 }
 
 fn f() {
