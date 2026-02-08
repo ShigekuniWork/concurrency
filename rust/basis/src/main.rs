@@ -1,4 +1,10 @@
-use std::{cell::{Cell, RefCell}, rc::Rc, sync::Mutex, thread, time::Duration};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    sync::Mutex,
+    thread,
+    time::Duration,
+};
 
 fn main() {
     let t1 = thread::spawn(f);
@@ -24,7 +30,6 @@ fn main() {
 
     assert_eq!(a.as_ptr(), b.as_ptr());
 
-
     // cell
     let x = Cell::new(5);
     let y = &x;
@@ -40,7 +45,6 @@ fn main() {
 
     v_ref.borrow_mut().push(6);
     println!("v: {:?}", v_ref.borrow());
-
 
     // Mutex
     let n = Mutex::new(0);
