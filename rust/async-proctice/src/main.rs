@@ -1,38 +1,56 @@
-use reqwest::Error;
-use serde::Deserialize;
-use serde_json;
 use std::time::Duration;
-use std::time::Instant;
 use tokio::time::sleep;
+use std::thread;
+use std::time::Instant;
 
-#[derive(Deserialize, Debug)]
-struct Response {
-    url: String,
-    args: serde_json::Value,
+async fn prep_coffee_mug() {
+    sleep(Duration::from_millis(100)).await;
+    println!("Pouring milk...");
+    thread::sleep(Duration::from_secs(3));
+    println!("Milk poured.");
+    println!("Putting instant coffee...");
+    thread::sleep(Duration::from_secs(3));
+    println!("Instant coffee put.");
 }
 
-async fn fetch_data(seconds: u64) -> Result<Response, Error> {
-    let request_url = format!("https://httpbin.org/delay/{}", seconds);
-    let response = reqwest::get(request_url).await?;
-    let delayed_response: Response = response.json::<Response>().await?;
-    println!("url: {}", delayed_response.url);
-    println!("args: {:?}", delayed_response.args);
-    Ok(delayed_response)
+async fn make_coffee() {
+    println!("boiling kettle...");
+    sleep(Duration::from_secs(10)).await;
+    println!("kettle boiled.");
+    println!("pouring boiled water...");
+    thread::sleep(Duration::from_secs(3));
+    println!("boiled water poured.");
 }
 
-async fn calculate_last_login() {
-    sleep(Duration::from_secs(1)).await;
-    println!("Logged in 2 days ago");
+async fn make_toast() {
+    println!("putting bread in toaster...");
+    sleep(Duration::from_secs(10)).await;
+    println!("bread toasted.");
+    println!("buttering toasted bread...");
+    thread::sleep(Duration::from_secs(5));
+    println!("toasted bread buttered.");
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() {
     let start_time = Instant::now();
-    let data = fetch_data(5);
-    let time_since = calculate_last_login();
-    let (posts, _) = tokio::join!(data, time_since);
-    let duration = start_time.elapsed();
-    println!("Fetched {:?}", posts);
-    println!("Time taken: {:?}", duration);
-    Ok(())
+    let person_one = tokio::task::spawn(async {
+        let coffee_mug_step = prep_coffee_mug();
+        let coffee_step = make_coffee();
+        let toast_step = make_toast();
+        tokio::join!(coffee_mug_step, coffee_step, toast_step);
+    });
+
+    let person_two = tokio::task::spawn(async {
+        let coffee_mug_step = prep_coffee_mug();
+        let coffee_step = make_coffee();
+        let toast_step = make_toast();
+        tokio::join!(coffee_mug_step, coffee_step, toast_step);
+    });
+
+    let (_, _) = tokio::join!(person_one, person_two);
+
+
+    let elapsed_time = start_time.elapsed();
+    println!("It took: {} seconds", elapsed_time.as_secs());
 }
