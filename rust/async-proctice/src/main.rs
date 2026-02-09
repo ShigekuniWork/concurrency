@@ -1,21 +1,46 @@
-use std::time::Instant;
-use reqwest::Error;
+use std::path::PathBuf;
+use tokio::fs::File as AsyncFile;
+use tokio::io::AsyncReadExt;
+use tokio::sync::watch;
+use tokio::time::{Duration, sleep};
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
-    let url = "https://jsonplaceholder.typicode.com/posts/1";
-    let start_time = Instant::now();
+async fn main() {
+    let (tx, mut rx) = watch::channel(false);
 
-    let (_, _, _, _, _) = tokio::join!(
-        reqwest::get(url),
-        reqwest::get(url),
-        reqwest::get(url),
-        reqwest::get(url),
-        reqwest::get(url),
-    );
+    tokio::spawn(watch_file_changes(tx));
 
-    let elapsed_time = start_time.elapsed();
-    println!("Request took {} ms", elapsed_time.as_millis());
+    loop {
+        // Wait for a change in the file  ファイルの更新を待つ
+        let _ = rx.changed().await;
 
-    Ok(())
+        // Read the file and print its contents to the console
+        if let Ok(contents) = read_file("./src/data.txt").await {
+            println!("{}", contents);
+        }
+    }
+}
+
+async fn read_file(filename: &str) -> Result<String, std::io::Error> {
+    let mut file = AsyncFile::open(filename).await?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).await?;
+    Ok(contents)
+}
+
+async fn watch_file_changes(tx: watch::Sender<bool>) {
+    let path = PathBuf::from("./src/data.txt");
+
+    let mut last_modified = None;
+    loop {
+        if let Ok(metadata) = path.metadata() {
+            let modified = metadata.modified().unwrap();
+
+            if last_modified != Some(modified) {
+                last_modified = Some(modified);
+                let _ = tx.send(true);
+            }
+        }
+        sleep(Duration::from_millis(100)).await;
+    }
 }
