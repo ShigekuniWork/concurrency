@@ -1,46 +1,38 @@
-use std::path::PathBuf;
-use tokio::fs::File as AsyncFile;
-use tokio::io::AsyncReadExt;
-use tokio::sync::watch;
-use tokio::time::{Duration, sleep};
+use reqwest::Error;
+use serde::Deserialize;
+use serde_json;
+use std::time::Duration;
+use std::time::Instant;
+use tokio::time::sleep;
+
+#[derive(Deserialize, Debug)]
+struct Response {
+    url: String,
+    args: serde_json::Value,
+}
+
+async fn fetch_data(seconds: u64) -> Result<Response, Error> {
+    let request_url = format!("https://httpbin.org/delay/{}", seconds);
+    let response = reqwest::get(request_url).await?;
+    let delayed_response: Response = response.json::<Response>().await?;
+    println!("url: {}", delayed_response.url);
+    println!("args: {:?}", delayed_response.args);
+    Ok(delayed_response)
+}
+
+async fn calculate_last_login() {
+    sleep(Duration::from_secs(1)).await;
+    println!("Logged in 2 days ago");
+}
 
 #[tokio::main]
-async fn main() {
-    let (tx, mut rx) = watch::channel(false);
-
-    tokio::spawn(watch_file_changes(tx));
-
-    loop {
-        // Wait for a change in the file  ファイルの更新を待つ
-        let _ = rx.changed().await;
-
-        // Read the file and print its contents to the console
-        if let Ok(contents) = read_file("./src/data.txt").await {
-            println!("{}", contents);
-        }
-    }
-}
-
-async fn read_file(filename: &str) -> Result<String, std::io::Error> {
-    let mut file = AsyncFile::open(filename).await?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).await?;
-    Ok(contents)
-}
-
-async fn watch_file_changes(tx: watch::Sender<bool>) {
-    let path = PathBuf::from("./src/data.txt");
-
-    let mut last_modified = None;
-    loop {
-        if let Ok(metadata) = path.metadata() {
-            let modified = metadata.modified().unwrap();
-
-            if last_modified != Some(modified) {
-                last_modified = Some(modified);
-                let _ = tx.send(true);
-            }
-        }
-        sleep(Duration::from_millis(100)).await;
-    }
+async fn main() -> Result<(), Error> {
+    let start_time = Instant::now();
+    let data = fetch_data(5);
+    let time_since = calculate_last_login();
+    let (posts, _) = tokio::join!(data, time_since);
+    let duration = start_time.elapsed();
+    println!("Fetched {:?}", posts);
+    println!("Time taken: {:?}", duration);
+    Ok(())
 }
