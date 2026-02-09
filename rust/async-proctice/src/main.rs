@@ -1,56 +1,42 @@
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
-use tokio::time::sleep;
-use std::thread;
-use std::time::Instant;
 
-async fn prep_coffee_mug() {
-    sleep(Duration::from_millis(100)).await;
-    println!("Pouring milk...");
-    thread::sleep(Duration::from_secs(3));
-    println!("Milk poured.");
-    println!("Putting instant coffee...");
-    thread::sleep(Duration::from_secs(3));
-    println!("Instant coffee put.");
+use tokio::task::JoinHandle;
+
+struct CounterFuture {
+    count: u32,
 }
 
-async fn make_coffee() {
-    println!("boiling kettle...");
-    sleep(Duration::from_secs(10)).await;
-    println!("kettle boiled.");
-    println!("pouring boiled water...");
-    thread::sleep(Duration::from_secs(3));
-    println!("boiled water poured.");
-}
+impl Future for CounterFuture {
+    type Output = u32;
 
-async fn make_toast() {
-    println!("putting bread in toaster...");
-    sleep(Duration::from_secs(10)).await;
-    println!("bread toasted.");
-    println!("buttering toasted bread...");
-    thread::sleep(Duration::from_secs(5));
-    println!("toasted bread buttered.");
+    fn poll(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>
+    ) -> Poll<Self::Output> {
+        self.count += 1;
+        println!("polling with result: {}", self.count);
+        std::thread::sleep(Duration::from_secs(1));
+        if self.count < 5 {
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        } else {
+            Poll::Ready(self.count)
+        }
+    }
 }
 
 #[tokio::main]
 async fn main() {
-    let start_time = Instant::now();
-    let person_one = tokio::task::spawn(async {
-        let coffee_mug_step = prep_coffee_mug();
-        let coffee_step = make_coffee();
-        let toast_step = make_toast();
-        tokio::join!(coffee_mug_step, coffee_step, toast_step);
+    let counter_one = CounterFuture { count: 0 };
+    let counter_two = CounterFuture { count: 0 };
+    let handle_one: JoinHandle<u32> = tokio::task::spawn(async move {
+        counter_one.await
     });
-
-    let person_two = tokio::task::spawn(async {
-        let coffee_mug_step = prep_coffee_mug();
-        let coffee_step = make_coffee();
-        let toast_step = make_toast();
-        tokio::join!(coffee_mug_step, coffee_step, toast_step);
+    let handle_two: JoinHandle<u32> = tokio::task::spawn(async move {
+        counter_two.await
     });
-
-    let (_, _) = tokio::join!(person_one, person_two);
-
-
-    let elapsed_time = start_time.elapsed();
-    println!("It took: {} seconds", elapsed_time.as_secs());
+    let _ = tokio::join!(handle_one, handle_two);
 }
