@@ -1,42 +1,72 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll, Waker};
+use tokio::sync::mpsc;
+use tokio::task;
 
-use tokio::task::JoinHandle;
-
-struct CounterFuture {
-    count: u32,
+struct MyFuture {
+    state: Arc<Mutex<MyFutureState>>,
 }
 
-impl Future for CounterFuture {
-    type Output = u32;
+struct MyFutureState {
+    data: Option<Vec<u8>>,
+    waker: Option<Waker>,
+}
 
-    fn poll(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>
-    ) -> Poll<Self::Output> {
-        self.count += 1;
-        println!("polling with result: {}", self.count);
-        std::thread::sleep(Duration::from_secs(1));
-        if self.count < 5 {
-            cx.waker().wake_by_ref();
-            Poll::Pending
+impl MyFuture {
+    fn new() -> (Self, Arc<Mutex<MyFutureState>>) {
+        let state = Arc::new(Mutex::new(MyFutureState {
+            data: None,
+            waker: None,
+        }));
+        (
+            MyFuture {
+                state: state.clone(),
+            },
+            state,
+        )
+    }
+}
+
+impl Future for MyFuture {
+    type Output = String;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        println!("Polling the future");
+        let mut state = self.state.lock().unwrap();
+
+        if state.data.is_some() {
+            let data = state.data.take().unwrap();
+            Poll::Ready(String::from_utf8(data).unwrap())
         } else {
-            Poll::Ready(self.count)
+            state.waker = Some(cx.waker().clone());
+            Poll::Pending
         }
     }
 }
 
 #[tokio::main]
 async fn main() {
-    let counter_one = CounterFuture { count: 0 };
-    let counter_two = CounterFuture { count: 0 };
-    let handle_one: JoinHandle<u32> = tokio::task::spawn(async move {
-        counter_one.await
+    let (my_future, state) = MyFuture::new();
+    let (tx, mut rx) = mpsc::channel::<()>(1);
+    let task_handle = task::spawn(async { my_future.await });
+    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+    println!("spawning trigger task");
+
+    let trigger_task = task::spawn(async move {
+        rx.recv().await;
+        let mut state = state.lock().unwrap();
+        state.data = Some(b"Hello from the outside".to_vec());
+        loop {
+            if let Some(waker) = state.waker.take() {
+                waker.wake();
+                break;
+            }
+        }
     });
-    let handle_two: JoinHandle<u32> = tokio::task::spawn(async move {
-        counter_two.await
-    });
-    let _ = tokio::join!(handle_one, handle_two);
+    tx.send(()).await.unwrap();
+    let outome = task_handle.await.unwrap();
+    println!("Task completed with outcome: {}", outome);
+    trigger_task.await.unwrap();
 }
