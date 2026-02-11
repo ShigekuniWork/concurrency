@@ -2,7 +2,7 @@ use tokio_util::task::LocalPoolHandle;
 use std::cell::RefCell;
 
 thread_local! {
-    pub static COUNTER: RefCell<u32> = RefCell::new(1);
+    pub static COUNTER: RefCell<u32> = const { RefCell::new(1) };
 }
 
 async fn something(number: u32) -> u32 {
