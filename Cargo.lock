@@ -1076,6 +1076,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "retry"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+]
+
+[[package]]
 name = "ring"
 version = "0.17.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
