@@ -1,3 +1,3 @@
 [workspace]
 resolver = "3"
-members = ["rust/actor","rust/async-practice","rust/atomic","rust/basis", "rust/coroutine", "rust/custom-tokio", "rust/reactive", "rust/self-async", "rust/waterfall"]
+members = ["rust/actor","rust/async-practice","rust/atomic","rust/basis", "rust/coroutine", "rust/custom-tokio", "rust/decorator", "rust/reactive", "rust/self-async", "rust/waterfall"]
